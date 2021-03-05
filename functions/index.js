@@ -1,14 +1,16 @@
-const functions = require('firebase-functions');
+const functions = require('firebase-functions').region('asia-southeast2');
+const firebase = require('firebase').default;
+const config = require('./config');
 
 const admin = require('firebase-admin');
-admin.initializeApp();
+const app = require('express')();
 
-const express = require('express');
-const app = express();
+firebase.initializeApp(config);
+admin.initializeApp();
+const firestore = admin.firestore();
 
 app.get('/screams', (req, res) => {
-    admin
-        .firestore()
+    firestore
         .collection('screams')
         .orderBy('createdAt', 'desc')
         .get()
@@ -23,26 +25,59 @@ app.get('/screams', (req, res) => {
 });
 
 app.post('/scream', (req, res) => {
-    if (req.method !== 'POST')
-        return res.status(400).json({ error: 'Method not allowed' });
+    const { body, userHandle } = req.body;
+    if (body.trim() === '')
+        return res.status(400).json({ body: 'Body must not be empty' });
 
-    const newScream = {
-        body: req.body.body,
-        userHandle: req.body.userHandle,
-        createdAt: new Date().toISOString(),
-    };
-
-    admin
-        .firestore()
+    const newScream = { body, userHandle, createdAt: new Date().toISOString() };
+    firestore
         .collection('screams')
         .add(newScream)
         .then(doc => {
-            res.json({ message: `Document ${doc.id} created successfully` });
+            return res.json({
+                message: `Document ${doc.id} created successfully`,
+            });
         })
         .catch(err => {
-            res.status(500).json({ error: 'Something went wrong' });
             console.error(err);
+            return res.status(500).json({ error: 'Something went wrong' });
         });
 });
 
-exports.api = functions.region('asia-southeast2').https.onRequest(app);
+app.post('/signup', (req, res) => {
+    const { email, password, confirmPassword, handle } = req.body;
+    const newUser = { email, password, confirmPassword, handle };
+
+    firestore
+        .doc(`/users/${newUser.handle}`)
+        .get()
+        .then(doc => {
+            if (doc.exists)
+                return res
+                    .status(400)
+                    .json({ handle: 'This handle is already taken' });
+            return firebase
+                .auth()
+                .createUserWithEmailAndPassword(email, password);
+        })
+        .then(data => {
+            firestore.doc(`/users/${newUser.handle}`).set({
+                email,
+                handle,
+                userId: data.user.uid,
+                createdAt: new Date().toISOString(),
+            });
+            return data.user.getIdToken();
+        })
+        .then(token => res.status(201).json({ token }))
+        .catch(err => {
+            console.error(err);
+            if (err.code === 'auth/email-already-in-use')
+                return res
+                    .status(400)
+                    .json({ email: 'Email is already in use' });
+            return res.status(500).json({ error: err.code });
+        });
+});
+
+exports.api = functions.https.onRequest(app);
