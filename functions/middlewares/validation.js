@@ -1,6 +1,6 @@
-const validator = require('validator');
+const validator = require('validator').default;
 
-exports.validateCreateUser = (req, res, next) => {
+exports.validateSignUp = (req, res, next) => {
     const { email, password, confirm, handle } = req.body;
     const errors = {};
 

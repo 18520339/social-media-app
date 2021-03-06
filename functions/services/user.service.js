@@ -1,6 +1,12 @@
-const { firebase, firestore } = require('../firebase');
+const BusBoy = require('busboy');
+const path = require('path');
+const fs = require('fs');
 
-exports.createUser = (req, res) => {
+const { admin, firebase, firestore } = require('../firebase');
+const { storageBucket } = require('../firebase/config');
+const storageUrl = `https://firebasestorage.googleapis.com/v0/b/${storageBucket}/o`;
+
+exports.signUp = (req, res) => {
     const { email, password, handle } = req.body;
     firestore
         .doc(`/users/${handle}`)
@@ -18,6 +24,7 @@ exports.createUser = (req, res) => {
                 handle,
                 userId: data.user.uid,
                 createdAt: new Date().toISOString(),
+                avatarUrl: `${storageUrl}/default-avatar.jpg?alt=media`,
             });
             return data.user.getIdToken();
         })
@@ -45,4 +52,41 @@ exports.login = (req, res) => {
         });
 };
 
-exports.uploadImage = (req, res) => {};
+exports.uploadAvatar = (req, res) => {
+    const busboy = new BusBoy({ headers: req.headers });
+    let avatar;
+
+    busboy.on('file', (fieldname, file, filename, encoding, mimetype) => {
+        const extname = path.extname(filename);
+        if (!/jpe?g|png|gif/.test(extname))
+            return res.status(400).json({ error: 'Only image is allowed' });
+
+        const avatarName = `${Date.now()}-${filename}`;
+        const filepath = `${__dirname}/../uploads/${avatarName}`;
+        const url = `${storageUrl}/${avatarName}?alt=media`;
+
+        avatar = { filepath, url, mimetype };
+        file.pipe(fs.createWriteStream(filepath));
+    });
+
+    busboy.on('finish', () => {
+        admin
+            .storage()
+            .bucket()
+            .upload(avatar.filepath, {
+                resumable: false,
+                metadata: { metadata: { contentType: avatar.mimetype } },
+            })
+            .then(() => {
+                return firestore
+                    .doc(`/users/${req.user.handle}`)
+                    .update({ avatarUrl: avatar.url });
+            })
+            .then(() => res.status(200).json({ message: 'Image uploaded' }))
+            .catch(err => {
+                console.error(err);
+                return res.status(500).json({ error: err.code });
+            });
+    });
+    busboy.end(req.rawBody);
+};

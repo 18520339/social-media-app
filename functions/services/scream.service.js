@@ -1,4 +1,4 @@
-const firestore = require('../firebase').firestore;
+const { firestore } = require('../firebase');
 
 exports.getScreams = (req, res) => {
     firestore
