@@ -1,0 +1,25 @@
+{
+    "firestore": {
+        "screams": [
+            {
+                "screamId": "B0sJUgxfx9qVWXt8aiIG",
+                "userHandle": "new",
+                "createdAt": "2021-03-06T19:28:33.035Z",
+                "body": "New scream"
+            }
+        ]
+    },
+    "userDetails": {
+        "credentials": {
+            "location": "London, UK",
+            "userId": "3o94eDy1HkVBlXFVf6rNRjGWfPp2",
+            "bio": "Hello, I'm new",
+            "website": "http://google.com",
+            "handle": "new",
+            "createdAt": "2021-03-06T19:25:00.990Z",
+            "email": "new@gmail.com",
+            "avatarUrl": "https://firebasestorage.googleapis.com/v0/b/quanatalk.appspot.com/o/1615121371533-default-avatar.jpg?alt=media"
+        },
+        "likes": []
+    }
+}

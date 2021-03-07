@@ -52,6 +52,7 @@ exports.login = (req, res) => {
             return res.status(500).json({ error: err.code });
         });
 };
+
 exports.getUser = (req, res) => {
     const userData = {};
     firestore
@@ -106,7 +107,11 @@ exports.uploadAvatar = (req, res) => {
                     .doc(`/users/${req.user.handle}`)
                     .update({ avatarUrl: avatar.url });
             })
-            .then(() => res.status(200).json({ message: 'Image uploaded' }))
+            .then(() => {
+                return res.status(200).json({
+                    message: 'Image uploaded successfully',
+                });
+            })
             .catch(err => {
                 console.error(err);
                 return res.status(500).json({ error: err.code });
@@ -115,23 +120,27 @@ exports.uploadAvatar = (req, res) => {
     busboy.end(req.rawBody);
 };
 
-exports.addUserDetails = (req, res) => {
+exports.addUserInfos = (req, res) => {
     const bio = req.body.bio.trim();
     const location = req.body.location.trim();
     const website = req.body.website.trim();
-    const userDetails = {};
+    const userInfos = {};
 
-    if (bio) userDetails.bio = bio;
-    if (location) userDetails.location = location;
+    if (bio) userInfos.bio = bio;
+    if (location) userInfos.location = location;
     if (website) {
         const prefix = website.startsWith('http') ? '' : 'http://';
-        userDetails.website = prefix + website;
+        userInfos.website = prefix + website;
     }
 
     firestore
         .doc(`/users/${req.user.handle}`)
-        .update(userDetails)
-        .then(() => res.status(200).json({ message: 'Details added' }))
+        .update(userInfos)
+        .then(() => {
+            return res.status(200).json({
+                message: 'Infos added successfully',
+            });
+        })
         .catch(err => {
             console.error(err);
             return res.status(500).json({ error: err.code });
