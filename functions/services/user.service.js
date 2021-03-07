@@ -1,5 +1,6 @@
 const BusBoy = require('busboy');
 const path = require('path');
+const os = require('os');
 const fs = require('fs');
 
 const { admin, firebase, firestore } = require('../firebase');
@@ -62,7 +63,7 @@ exports.uploadAvatar = (req, res) => {
             return res.status(400).json({ error: 'Only image is allowed' });
 
         const avatarName = `${Date.now()}-${filename}`;
-        const filepath = `${__dirname}/../uploads/${avatarName}`;
+        const filepath = path.join(os.tmpdir(), avatarName);
         const url = `${storageUrl}/${avatarName}?alt=media`;
 
         avatar = { filepath, url, mimetype };
