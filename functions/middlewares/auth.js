@@ -24,7 +24,6 @@ exports.authenticate = (req, res, next) => {
         })
         .then(data => {
             req.user.handle = data.docs[0].data().handle;
-            req.user.avatarUrl = data.docs[0].data().avatarUrl;
             return next();
         })
         .catch(err => {

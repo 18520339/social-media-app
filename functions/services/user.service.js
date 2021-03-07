@@ -52,6 +52,29 @@ exports.login = (req, res) => {
             return res.status(500).json({ error: err.code });
         });
 };
+exports.getUser = (req, res) => {
+    const userData = {};
+    firestore
+        .doc(`/users/${req.user.handle}`)
+        .get()
+        .then(doc => {
+            if (doc.exists) {
+                userData.credentials = doc.data();
+                return firestore
+                    .collection('likes')
+                    .where('userHandle', '==', req.user.handle)
+                    .get();
+            }
+        })
+        .then(data => {
+            userData.likes = data.docs.map(doc => doc.data());
+            return res.status(200).json(userData);
+        })
+        .catch(err => {
+            console.error(err);
+            return res.status(500).json({ error: err.code });
+        });
+};
 
 exports.uploadAvatar = (req, res) => {
     const busboy = new BusBoy({ headers: req.headers });
@@ -90,4 +113,27 @@ exports.uploadAvatar = (req, res) => {
             });
     });
     busboy.end(req.rawBody);
+};
+
+exports.addUserDetails = (req, res) => {
+    const bio = req.body.bio.trim();
+    const location = req.body.location.trim();
+    const website = req.body.website.trim();
+    const userDetails = {};
+
+    if (bio) userDetails.bio = bio;
+    if (location) userDetails.location = location;
+    if (website) {
+        const prefix = website.startsWith('http') ? '' : 'http://';
+        userDetails.website = prefix + website;
+    }
+
+    firestore
+        .doc(`/users/${req.user.handle}`)
+        .update(userDetails)
+        .then(() => res.status(200).json({ message: 'Details added' }))
+        .catch(err => {
+            console.error(err);
+            return res.status(500).json({ error: err.code });
+        });
 };
