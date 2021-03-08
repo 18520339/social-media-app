@@ -3,7 +3,7 @@ const path = require('path');
 const os = require('os');
 const fs = require('fs');
 
-const { admin, firebase, firestore } = require('../firebase');
+const { admin, firebase, firestore, functions } = require('../firebase');
 const { storageBucket } = require('../firebase/config');
 const storageUrl = `https://firebasestorage.googleapis.com/v0/b/${storageBucket}/o`;
 
@@ -34,7 +34,9 @@ exports.signUp = (req, res) => {
             console.error(err);
             if (err.code === 'auth/email-already-in-use')
                 return res.status(400).json({ email: 'Email already exists' });
-            return res.status(500).json({ error: err.code });
+            return res.status(500).json({
+                general: 'Something went wrong, please try again',
+            });
         });
 };
 
@@ -47,9 +49,9 @@ exports.login = (req, res) => {
         .then(token => res.status(200).json({ token }))
         .catch(err => {
             console.error(err);
-            if (err.code === 'auth/wrong-password')
-                return res.status(400).json({ password: 'Wrong password' });
-            return res.status(500).json({ error: err.code });
+            return res.status(403).json({
+                general: 'Wrong credentials, please try again',
+            });
         });
 };
 
@@ -186,22 +188,46 @@ exports.uploadAvatar = (req, res) => {
     busboy.end(req.rawBody);
 };
 
-exports.markNotificationRead = (req, res) => {
-    const batch = firestore.batch();
-    req.body.forEach(notificationId => {
-        const notification = firestore.doc(`/notifications/${notificationId}`);
-        batch.update(notification, { read: true });
-    });
+exports.onAvatarChange = functions.firestore
+    .document(`/users/{userId}`)
+    .onUpdate(({ before, after }) => {
+        if (before.data().avatarUrl !== after.data().avatarUrl) {
+            const batch = firestore.batch();
+            return firestore
+                .collection('screams')
+                .where('userHandle', '==', before.data().handle)
+                .get()
+                .then(data => {
+                    data.forEach(doc => {
+                        const screamDoc = firestore.doc(`/screams/${doc.id}`);
+                        batch.update(screamDoc, {
+                            userAvatar: after.data().avatarUrl,
+                        });
+                    });
+                    return firestore
+                        .collection('comments')
+                        .where('userHandle', '==', before.data().handle)
+                        .get();
+                })
+                .then(data => {
+                    data.forEach(doc => {
+                        const commentDoc = firestore.doc(`/comments/${doc.id}`);
+                        batch.update(commentDoc, {
+                            userAvatar: after.data().avatarUrl,
+                        });
+                    });
+                    batch.commit();
 
-    batch
-        .commit()
-        .then(() => {
-            return res.status(200).json({
-                message: 'Notifications marked read',
-            });
-        })
-        .catch(err => {
-            console.error(err);
-            return res.status(500).json({ error: err.code });
-        });
-};
+                    const regEx = /[\w-]+\.(jpe?g|png|gif)/;
+                    const fileName = before.data().avatarUrl.match(regEx)[0];
+                    if (fileName !== 'default-avatar.jpg') {
+                        admin
+                            .storage()
+                            .bucket()
+                            .file(fileName)
+                            .delete()
+                            .catch(console.error);
+                    }
+                });
+        } else return true;
+    });

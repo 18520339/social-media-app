@@ -1,4 +1,4 @@
-const { firestore } = require('../firebase');
+const { firestore, functions } = require('../firebase');
 
 exports.getScreams = (req, res) => {
     firestore
@@ -168,7 +168,7 @@ exports.unlikeScream = (req, res) => {
 
 exports.commentScream = (req, res) => {
     if (!req.body.body.trim())
-        return res.status(400).json({ error: 'Must not be empty' });
+        return res.status(400).json({ comment: 'Must not be empty' });
 
     const newComment = {
         screamId: req.params.screamId,
@@ -195,3 +195,38 @@ exports.commentScream = (req, res) => {
             return res.status(500).json({ error: err.code });
         });
 };
+
+exports.onScreamDelete = functions.firestore
+    .document('/screams/{screamId}')
+    .onDelete(snapshot => {
+        const batch = firestore.batch();
+        return firestore
+            .collection('comments')
+            .where('screamId', '==', snapshot.id)
+            .get()
+            .then(data => {
+                data.forEach(doc => {
+                    batch.delete(firestore.doc(`/comments/${doc.id}`));
+                });
+                return firestore
+                    .collection('likes')
+                    .where('screamId', '==', snapshot.id)
+                    .get();
+            })
+            .then(data => {
+                data.forEach(doc => {
+                    batch.delete(firestore.doc(`/likes/${doc.id}`));
+                });
+                return firestore
+                    .collection('notifications')
+                    .where('screamId', '==', snapshot.id)
+                    .get();
+            })
+            .then(data => {
+                data.forEach(doc => {
+                    batch.delete(firestore.doc(`/notifications/${doc.id}`));
+                });
+                return batch.commit();
+            })
+            .catch(console.error);
+    });
