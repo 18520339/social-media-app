@@ -14,12 +14,10 @@ const { authenticate } = require('../middlewares/auth');
 
 router.get('/screams', getScreams);
 router.get('/scream/:screamId', getScreamById);
+router.get('/scream/:screamId/like', authenticate, likeScream);
+router.get('/scream/:screamId/unlike', authenticate, unlikeScream);
+router.post('/scream/:screamId/comment', authenticate, commentScream);
 
 router.post('/scream', authenticate, createScream);
 router.delete('/scream/:screamId', authenticate, deleteScream);
-
-router.post('/scream/:screamId/like', authenticate, likeScream);
-router.post('/scream/:screamId/unlike', authenticate, unlikeScream);
-router.post('/scream/:screamId/comment', authenticate, commentScream);
-
 module.exports = router;

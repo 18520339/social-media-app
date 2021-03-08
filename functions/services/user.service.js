@@ -53,23 +53,89 @@ exports.login = (req, res) => {
         });
 };
 
-exports.getUser = (req, res) => {
+exports.getMe = (req, res) => {
     const userData = {};
     firestore
         .doc(`/users/${req.user.handle}`)
         .get()
         .then(doc => {
-            if (doc.exists) {
-                userData.credentials = doc.data();
-                return firestore
-                    .collection('likes')
-                    .where('userHandle', '==', req.user.handle)
-                    .get();
-            }
+            if (!doc.exists)
+                return res.status(404).json({ error: 'User not found' });
+
+            userData.credentials = doc.data();
+            return firestore
+                .collection('likes')
+                .where('userHandle', '==', req.user.handle)
+                .get();
         })
         .then(data => {
             userData.likes = data.docs.map(doc => doc.data());
+            return firestore
+                .collection('notifications')
+                .where('recipient', '==', req.user.handle)
+                .orderBy('createdAt', 'desc')
+                .limit(10)
+                .get();
+        })
+        .then(data => {
+            userData.notifications = data.docs.map(doc => doc.data());
             return res.status(200).json(userData);
+        })
+        .catch(err => {
+            console.error(err);
+            return res.status(500).json({ error: err.code });
+        });
+};
+
+exports.getUserByHandle = (req, res) => {
+    const userData = {};
+    firestore
+        .doc(`/users/${req.params.handle}`)
+        .get()
+        .then(doc => {
+            if (!doc.exists)
+                return res.status(404).json({ error: 'User not found' });
+
+            userData.user = doc.data();
+            return firestore
+                .collection('screams')
+                .where('userHandle', '==', req.params.handle)
+                .orderBy('createdAt', 'desc')
+                .get();
+        })
+        .then(data => {
+            userData.screams = data.docs.map(doc => ({
+                screamId: doc.id,
+                ...doc.data(),
+            }));
+            return res.status(200).json(userData);
+        })
+        .catch(err => {
+            console.error(err);
+            return res.status(500).json({ error: err.code });
+        });
+};
+
+exports.addUserInfos = (req, res) => {
+    const bio = req.body.bio.trim();
+    const location = req.body.location.trim();
+    const website = req.body.website.trim();
+    const userInfos = {};
+
+    if (bio) userInfos.bio = bio;
+    if (location) userInfos.location = location;
+    if (website) {
+        const prefix = website.startsWith('http') ? '' : 'http://';
+        userInfos.website = prefix + website;
+    }
+
+    firestore
+        .doc(`/users/${req.user.handle}`)
+        .update(userInfos)
+        .then(() => {
+            return res.status(200).json({
+                message: 'Infos added successfully',
+            });
         })
         .catch(err => {
             console.error(err);
@@ -120,25 +186,18 @@ exports.uploadAvatar = (req, res) => {
     busboy.end(req.rawBody);
 };
 
-exports.addUserInfos = (req, res) => {
-    const bio = req.body.bio.trim();
-    const location = req.body.location.trim();
-    const website = req.body.website.trim();
-    const userInfos = {};
+exports.markNotificationRead = (req, res) => {
+    const batch = firestore.batch();
+    req.body.forEach(notificationId => {
+        const notification = firestore.doc(`/notifications/${notificationId}`);
+        batch.update(notification, { read: true });
+    });
 
-    if (bio) userInfos.bio = bio;
-    if (location) userInfos.location = location;
-    if (website) {
-        const prefix = website.startsWith('http') ? '' : 'http://';
-        userInfos.website = prefix + website;
-    }
-
-    firestore
-        .doc(`/users/${req.user.handle}`)
-        .update(userInfos)
+    batch
+        .commit()
         .then(() => {
             return res.status(200).json({
-                message: 'Infos added successfully',
+                message: 'Notifications marked read',
             });
         })
         .catch(err => {
