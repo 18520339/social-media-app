@@ -16,7 +16,7 @@ exports.getScreams = (req, res) => {
 };
 
 exports.getScreamById = (req, res) => {
-    let screamData = {};
+    let screamData;
     firestore
         .doc(`/screams/${req.params.screamId}`)
         .get()
@@ -43,22 +43,61 @@ exports.getScreamById = (req, res) => {
 };
 
 exports.createScream = (req, res) => {
-    if (req.body.body.trim() === '')
-        return res.status(400).json({ body: 'Body must not be empty' });
+    if (!req.body.body.trim())
+        return res.status(400).json({ body: 'Must not be empty' });
 
     const newScream = {
         body: req.body.body,
         userHandle: req.user.handle,
+        userAvatar: req.user.avatarUrl,
         createdAt: new Date().toISOString(),
+        likeCount: 0,
+        commentCount: 0,
     };
 
     firestore
         .collection('screams')
         .add(newScream)
+        .then(doc => res.status(201).json({ screamId: doc.id, ...newScream }))
+        .catch(err => {
+            console.error(err);
+            return res.status(500).json({ error: err.code });
+        });
+};
+
+exports.likeScream = (req, res) => {
+    let screamData;
+    const screamDoc = firestore.doc(`/screams/${req.params.screamId}`);
+    const newLike = {
+        screamId: req.params.screamId,
+        userHandle: req.user.handle,
+    };
+    screamDoc
+        .get()
         .then(doc => {
-            return res.status(201).json({
-                message: `Scream ${doc.id} created successfully`,
-            });
+            if (!doc.exists)
+                return res.status(404).json({ error: 'Scream not found' });
+
+            screamData = doc.data();
+            screamData.screamId = doc.id;
+            return firestore
+                .collection('likes')
+                .where('userHandle', '==', req.user.handle)
+                .where('screamId', '==', req.params.screamId)
+                .limit(1)
+                .get();
+        })
+        .then(data => {
+            if (!data.empty)
+                return res.status(400).json({ error: 'Scream already liked' });
+            return firestore
+                .collection('likes')
+                .add(newLike)
+                .then(() => {
+                    const likeCount = ++screamData.likeCount;
+                    return screamDoc.update({ likeCount });
+                })
+                .then(() => res.status(200).json(screamData));
         })
         .catch(err => {
             console.error(err);
@@ -66,32 +105,63 @@ exports.createScream = (req, res) => {
         });
 };
 
-exports.commentOnScream = (req, res) => {
-    const { body, params, user } = req;
-    if (!body.body.trim())
+exports.unlikeScream = (req, res) => {
+    let screamData;
+    const screamDoc = firestore.doc(`/screams/${req.params.screamId}`);
+    screamDoc
+        .get()
+        .then(doc => {
+            if (!doc.exists)
+                return res.status(404).json({ error: 'Scream not found' });
+
+            screamData = doc.data();
+            screamData.screamId = doc.id;
+            return firestore
+                .collection('likes')
+                .where('userHandle', '==', req.user.handle)
+                .where('screamId', '==', req.params.screamId)
+                .limit(1)
+                .get();
+        })
+        .then(data => {
+            if (data.empty)
+                return res.status(400).json({ error: 'Scream not liked' });
+            return firestore
+                .doc(`/likes/${data.docs[0].id}`)
+                .delete()
+                .then(() => {
+                    const likeCount = --screamData.likeCount;
+                    return screamDoc.update({ likeCount });
+                })
+                .then(() => res.status(200).json(screamData));
+        })
+        .catch(err => {
+            console.error(err);
+            return res.status(500).json({ error: err.code });
+        });
+};
+
+exports.commentScream = (req, res) => {
+    if (!req.body.body.trim())
         return res.status(400).json({ error: 'Must not be empty' });
 
     const newComment = {
-        body: body.body,
+        screamId: req.params.screamId,
+        body: req.body.body,
+        userHandle: req.user.handle,
+        userAvatar: req.user.avatarUrl,
         createdAt: new Date().toISOString(),
-        screamId: params.screamId,
-        userHandle: user.handle,
-        userAvatar: user.avatarUrl,
     };
 
     firestore
-        .doc(`screams/${params.screamId}`)
+        .doc(`screams/${req.params.screamId}`)
         .get()
         .then(doc => {
             if (!doc.exists)
                 return res.status(404).json({ error: 'Scream not found' });
             return firestore.collection('comments').add(newComment);
         })
-        .then(doc => {
-            return res.status(201).json({
-                message: `Comment ${doc.id} created successfully`,
-            });
-        })
+        .then(doc => res.status(201).json({ commentId: doc.id, ...newComment }))
         .catch(err => {
             console.error(err);
             return res.status(500).json({ error: err.code });
