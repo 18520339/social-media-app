@@ -65,6 +65,28 @@ exports.createScream = (req, res) => {
         });
 };
 
+exports.deleteScream = (req, res) => {
+    const screamDoc = firestore.doc(`/screams/${req.params.screamId}`);
+    screamDoc
+        .get()
+        .then(doc => {
+            if (!doc.exists)
+                return res.status(404).json({ error: 'Scream not found' });
+            if (doc.data().userHandle !== req.user.handle)
+                return res.status(403).json({ error: 'Unauthorized' });
+            return screamDoc.delete();
+        })
+        .then(() => {
+            return res.status(200).json({
+                message: 'Scream deleted successfully',
+            });
+        })
+        .catch(err => {
+            console.error(err);
+            return res.status(500).json({ error: err.code });
+        });
+};
+
 exports.likeScream = (req, res) => {
     let screamData;
     const screamDoc = firestore.doc(`/screams/${req.params.screamId}`);
@@ -159,8 +181,11 @@ exports.commentScream = (req, res) => {
         .then(doc => {
             if (!doc.exists)
                 return res.status(404).json({ error: 'Scream not found' });
-            return firestore.collection('comments').add(newComment);
+            return doc.ref.update({
+                commentCount: doc.data().commentCount + 1,
+            });
         })
+        .then(() => firestore.collection('comments').add(newComment))
         .then(doc => res.status(201).json({ commentId: doc.id, ...newComment }))
         .catch(err => {
             console.error(err);
