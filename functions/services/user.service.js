@@ -33,14 +33,14 @@ exports.signUp = (req, res) => {
         .catch(err => {
             console.error(err);
             if (err.code === 'auth/email-already-in-use')
-                return res.status(400).json({ email: 'Email already exists' });
-            return res.status(500).json({
-                general: 'Something went wrong, please try again',
-            });
+                return res.status(400).json({ email: err.message });
+            else if (err.code === 'auth/email-already-in-use')
+                return res.status(400).json({ password: err.message });
+            return res.status(500).json({ general: err.message });
         });
 };
 
-exports.login = (req, res) => {
+exports.signIn = (req, res) => {
     const { email, password } = req.body;
     firebase
         .auth()

@@ -3,13 +3,13 @@ const router = express.Router();
 
 const {
     signUp,
-    login,
+    signIn,
     getMe,
     getUserByHandle,
     addUserInfos,
     uploadAvatar,
 } = require('../services/user.service');
-const { validateSignUp, validateLogin } = require('../middlewares/validate');
+const { validateSignUp, validateSignIn } = require('../middlewares/validate');
 const { authenticate } = require('../middlewares/auth');
 
 router.get('/user/me', authenticate, getMe);
@@ -18,5 +18,5 @@ router.post('/user', authenticate, addUserInfos);
 router.post('/user/avatar', authenticate, uploadAvatar);
 
 router.post('/user/signup', validateSignUp, signUp);
-router.post('/user/login', validateLogin, login);
+router.post('/user/signin', validateSignIn, signIn);
 module.exports = router;
