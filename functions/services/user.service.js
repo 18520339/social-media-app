@@ -118,7 +118,7 @@ exports.getUserByHandle = (req, res) => {
         });
 };
 
-exports.addUserInfos = (req, res) => {
+exports.editUserInfos = (req, res) => {
     const bio = req.body.bio.trim();
     const location = req.body.location.trim();
     const website = req.body.website.trim();
@@ -136,7 +136,7 @@ exports.addUserInfos = (req, res) => {
         .update(userInfos)
         .then(() => {
             return res.status(200).json({
-                message: 'Infos added successfully',
+                message: 'Infos updated successfully',
             });
         })
         .catch(err => {
